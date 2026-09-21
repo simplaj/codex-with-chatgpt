@@ -18,6 +18,118 @@ The C2C Bridge gives ChatGPT read-only MCP access to the current workspace, so
 control messages between you and ChatGPT stay tiny (< 1 KB) — ChatGPT pulls
 whatever data it needs by itself.
 
+## Transport dispatch — run BEFORE all workflows below
+
+This version defaults to the **OpenAI one-paste setup** flow unless the user
+explicitly requests the legacy Cloudflare transport. All setup, reconnect,
+per-task health, repair, update and disconnect instructions below that mention
+HTTP, public URLs, pairing, `c2c doctor`, `c2c restart`, or Cloudflare are
+**legacy-only**. In OpenAI mode replace them with the procedure in this section.
+Never install Cloudflare, run the legacy setup/doctor, or fall back to it.
+Do not run automatic upstream updates or stash the user's modifications.
+Only upgrade from a user-approved source verified to include these features.
+Reuse the conversation, execution-record, and planning/review protocols below;
+transport selection does not alter those workflows.
+
+## OpenAI one-paste setup
+
+The user wants execution, not a list of commands. Perform these steps in order,
+keeping the installation directory distinct from the target project. Ask one
+short question only when a required target/permission is genuinely missing.
+
+1. **Local preparation.** Use the checkout under Locations, or the current
+   modified checkout if installing for the first time. Verify it contains
+   `src/tunnel/openai.ts`; never clone the unmodified upstream over it. Verify
+   git, Node >=20 and pnpm; use company-approved dependency installation.
+   Run `pnpm install --frozen-lockfile && pnpm build` there. Use absolute
+   `node <checkout>/bin/c2c.js` for every `c2c` command below (no PATH assumption).
+   Install this entire SKILL.md into the usual skill directory and update its
+   Locations entry. Do not copy a stale upstream Skill. Ensure state writes are
+   allowed using the normal approval process, not by bypassing restrictions.
+2. **Runtime installation (do this yourself).** Reuse a previously verified
+   standalone runtime if present. Otherwise query
+   `https://api.github.com/repos/openai/tunnel-client/releases/latest` and choose
+   exactly the `tunnel-client-runtime-<version>-<os>-<arch>.zip` asset matching
+   this machine: darwin/linux/windows and amd64 (x64) or arm64. Reject all
+   cloudflared, full-client, source and mismatched-architecture assets. Download
+   only the official asset URL, verify SHA-256 against its release `digest`
+   (or the official SHA256SUMS.txt if no digest), then extract into a private
+   user installation directory OUTSIDE the target project. No sudo or Homebrew
+   full-client bundle. Use OS archive tools; check archive paths before
+   extraction. Run the absolute binary with `--version` and `run --help`.
+   If downloads are blocked or checksums fail, stop and report the blocker;
+   never substitute an unverified mirror or disable TLS verification.
+3. **Reuse before creating.** Inspect only the non-secret saved configuration
+   under the C2C state directory's `openai/<workspace-id>.json`. Run
+   `c2c openai doctor -w <project> --json` if configured. If ready, do not start
+   a duplicate runtime. Keep the same tunnel ID and target mapping. One tunnel
+   ID must have only one runtime, including on other computers.
+4. **Account setup.** Using an available authorized browser tool, open
+   `https://platform.openai.com/settings/organization/tunnels`. Reuse the
+   intended tunnel or create one for this project, associate it with the correct
+   ChatGPT workspace, and confirm Tunnels Read + Use (Manage for creation).
+   Never guess the target organization or grant broad unrelated access. Pause
+   for login, consent, CAPTCHA, or missing admin permissions. If browser control
+   is unavailable, guide one concrete UI action at a time; do not abandon the
+   user with the whole manual. A subscription is not proof of tunnel access.
+5. **Secret handoff.** Have the user securely save the runtime key directly to
+   a local file outside the target project, readable only by their OS user
+   (0600 on Unix; restricted ACL on Windows). Explain the file location, not
+   the key. Do not read the key into tool output, browser extraction, chat,
+   command arguments, or shell history. Do not create the key on behalf of
+   the user if doing so would expose it in model-visible output. The launcher
+   reads this file privately and supplies the key to its child via environment.
+   If a runtime key is already available in the launch environment, no file
+   is needed and `--key-file` may be omitted.
+6. **Save configuration yourself.** Run:
+   `c2c openai setup -w <absolute-project> --runtime <absolute-binary> --tunnel-id <id> --key-file <private-file> --json`.
+   Quote all paths. No secret is included in this command. Configuration is
+   owner-only and persisted outside the project. Rerunning with the same
+   arguments preserves the health port. `configured: true` is NOT connected.
+7. **Start and check.** Launch `c2c openai run -w <project>` in a persistent
+   terminal/process session; retain that session handle. This is a foreground
+   supervisor, not an OS login service. Do not use a short timeout that kills
+   the process, and do not spawn another if the lock exists. For up to 60 seconds,
+   poll `c2c openai doctor -w <project> --json` with a few seconds between probes.
+   If not ready, inspect locally with secret-safe diagnostics. Report failure
+   and stop retries, never mark ready. A stale lock may be removed ONLY after
+   confirming its recorded process and runtime are stopped; never blindly kill
+   a PID or delete a lock. A port conflict requires stopping the old runtime,
+   explicitly clearing the non-secret configuration, and configuring again.
+8. **App configuration.** In the authorized browser, enable developer mode
+   if permitted, open `https://chatgpt.com/plugins`, and create/reuse this
+   project's app with Connection → Tunnel and the exact saved tunnel ID.
+   Choose no application-level authentication for the stdio server; tunnel
+   permissions still authorize access. Do NOT use an HTTP URL, OAuth pairing,
+   or the full-client init/doctor commands. Reuse the selected auto/manual
+   browser preference, if one exists; manual mode means one guided step at a
+   time. Login/consent always remains the user's step.
+9. **End-to-end acceptance.** Enable the app in the intended conversation.
+   Invoke `workspace_info`, `read_file` for a harmless file, and `git_status`.
+   Compare the returned workspace ID with setup's ID and check expected file
+   content without copying project contents into the chat control messages.
+   Only after all pass report: local configuration, runtime ready, app connected,
+   file read verified. Otherwise report exactly the remaining blocker.
+10. **Handoff.** Tell the user to ask “使用无 Cloudflare 连接，帮我实现 XXX”.
+    Retain the target path, configuration location and terminal handle (never
+    credentials). Explain that closing the runtime terminal or rebooting stops
+    access, and the agent can restart with `c2c openai run -w <project>`.
+
+### OpenAI reconnect, daily use and disconnect
+
+Before each planning/review workflow, run `c2c openai doctor -w <project> --json`
+instead of the legacy doctor/update gate. If offline, inspect the existing
+session and restart the saved `openai run` only after confirming no instance
+is active. Recheck readiness, then re-verify `workspace_info` through the app.
+Do not delete/recreate a healthy app or switch IDs to fix an unrelated browser
+problem. For missing permissions use the account step above, not Cloudflare.
+
+To stop, Ctrl-C the owned runtime terminal and verify it exited. Do not use
+`c2c stop` or `unpair` as Tunnel revocation: those affect only legacy HTTP.
+For revocation also remove the app or change the tunnel's access permissions
+with explicit authorization. If migrating from an existing legacy connection,
+stop that project's old bridge separately; never change another project's app.
+
 **Golden rules**
 
 1. NEVER paste file contents, diffs, or logs into ChatGPT. ChatGPT reads them through MCP.
@@ -215,7 +327,7 @@ commands (both are cheap / cached; never mention them unless an update exists):
 
 Inside the checkout directory (see Locations):
 
-1. `git pull --ff-only` (if it fails due to local edits: `git stash && git pull --ff-only`).
+1. Only after confirming the update source retains this version’s features, use `git pull --ff-only`. If local edits block it, stop and preserve them; never automatically stash or overwrite them.
 2. `corepack pnpm install && corepack pnpm build`.
 3. Re-install the Skill: copy `skill/SKILL.md` to
    `~/.codex/skills/codex-with-chatgpt/SKILL.md`, then fix the "checkout lives at:"

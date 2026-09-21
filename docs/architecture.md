@@ -41,7 +41,7 @@
 | Module | Responsibility |
 | --- | --- |
 | `bridge/` | Express app assembly, loopback-only listener, port fallback, runtime state, admin API |
-| `mcp/` | McpServer with 9 read-only tools; stateless Streamable HTTP transport (fresh server per request, JSON responses) |
+| `mcp/` | McpServer with 9 read-only tools; stateless Streamable HTTP transport (fresh server per request, JSON responses), or a single-server stdio transport |
 | `auth/` | OAuth 2.1 authorization server: discovery metadata (RFC 8414 + Protected Resource Metadata), dynamic client registration (RFC 7591), authorization-code + PKCE (S256 only), refresh rotation, revocation (RFC 7009). Opaque tokens stored as SHA-256 hashes |
 | `pairing/` | PairingCode lifecycle: CSPRNG generation, TTL, attempt limits, IP rate limit, one-time use |
 | `workspace/` | Canonical-path containment (realpath of deepest existing ancestor), sensitive-file policy, `.c2cignore`, paginated read/list, ripgrep search with Node fallback, git status/diff with pagination |
@@ -78,3 +78,17 @@ user step. Tunnel name, hostname and preference live under the OS state dir
 provisioning fails, C2C falls back to Quick Tunnel. If a named tunnel later
 drops, doctor asks for a Cloudflare re-login (`namedRepair`) instead of
 rotating the ChatGPT connector.
+
+## Optional private stdio transport
+
+`c2c mcp-stdio --workspace <absolute-path>` runs the same MCP tool handlers in
+a foreground process using stdin/stdout. The workspace option is mandatory;
+stdout contains only protocol messages and diagnostics use stderr. It opens no
+HTTP bridge, OAuth endpoints, admin API, or Cloudflare process.
+
+OpenAI Secure MCP Tunnel's standalone runtime can launch this process and
+forward requests over outbound HTTPS. Tunnel permissions replace HTTP bearer
+authentication on this path; all read-only tools remain constrained to the
+selected workspace. The runtime owns process supervision and tunnel health,
+independently of the existing `c2c doctor`/`stop` bridge commands. See the
+[setup and lifecycle guide](openai-tunnel.md).

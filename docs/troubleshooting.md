@@ -1,6 +1,11 @@
 # Troubleshooting
 
-First move, always:
+For the optional OpenAI Secure MCP Tunnel + stdio path, use the runtime health
+UI and logs described in [its guide](openai-tunnel.md#troubleshooting). The
+commands below diagnose the original HTTP/Cloudflare bridge; `c2c doctor` does
+not diagnose the external runtime.
+
+For the HTTP/Cloudflare bridge, start with:
 
 ```
 c2c doctor

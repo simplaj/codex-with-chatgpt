@@ -4,35 +4,72 @@
 > ChatGPT 负责思考，Codex 负责干活。
 
 > [!IMPORTANT]
-> **遇到问题？** 请先向 Codex 发送 **「更新 Codex with ChatGPT」** 并重试。更新到最新版本可以解决大多数已知问题。  
-> **Having trouble?** First ask Codex to **“Update Codex with ChatGPT”** and try again. Updating to the latest version resolves most known issues.
+> This modified version defaults to the Cloudflare-free setup below. Preserve local changes; do not automatically update from a source that lacks this feature.
 
 ## The problem · 解决什么问题
 
 **中文** — ChatGPT 付费订阅的网页版额度大量闲置，Codex 却在消耗紧张的
 API 额度做规划和 Review。本项目把"思考"交给你已付费的网页版 ChatGPT，
-Codex 只负责执行。不用 API Key、不搞逆向代理——官方网页 + 只读 MCP 桥接。
+Codex 只负责执行。不调用模型 API、不搞逆向代理——官方网页 + 只读 MCP 桥接。
+可选的 OpenAI Tunnel 连接需要 runtime API key。
 
 **EN** — ChatGPT Plus/Pro web quota sits idle while your coding agent burns
 scarce API/Codex tokens on planning and review. This project moves the
 thinking to the subscription you already pay for; Codex only executes.
-No API keys, no reverse proxy — official web UI plus a read-only MCP bridge.
+No model API calls, no reverse proxy — official web UI plus a read-only MCP bridge.
+The optional OpenAI Tunnel transport requires a runtime API key.
 
 ## What it is · 这是什么
 
 **中文** — 把 ChatGPT 网页版变成 Codex 编码会话的"规划与审查大脑"，执行权
-完全保留在 Codex 手里。你的仓库永远不会被上传：ChatGPT 通过一条安全的、
-OAuth 保护的**只读** MCP 连接，按需读取当前工作区里它真正需要的那几行代码。
+完全保留在 Codex 手里。不会整包上传项目，但被请求的文件内容会通过连接传输：ChatGPT 通过一条安全的、
+受认证与访问控制保护的**只读** MCP 连接，按需读取当前工作区里它真正需要的那几行代码。
 
 **EN** — Use the ChatGPT web app as the planning and review brain for your
 Codex coding sessions, while Codex keeps full ownership of execution. Your
-repository is never uploaded: ChatGPT reads exactly the lines it needs through
-a secure, OAuth-protected, **read-only** MCP connection to your current
-workspace.
+repository is not uploaded as a whole; requested contents are transmitted: ChatGPT reads exactly the lines it needs through
+a secure, **read-only** MCP connection to your current workspace (OAuth for
+the HTTP bridge, or tunnel access controls for the optional stdio path).
 
 Detailed docs below are in English · 详细中文文档见 **[README.zh-CN.md](README.zh-CN.md)**
 
-## One-paste install · 一段话安装
+## One-paste setup — no Cloudflare (default in this version)
+
+Copy this into Codex. It installs the runtime, saves configuration, starts the
+connection, configures the app, and verifies real tool calls—not just a manual
+command recipe. Login, consent, and saving a key locally remain human steps.
+
+> Install **this fork** containing `c2c openai setup` using the URL below, not
+> the unmodified upstream. Preserve existing local edits. Tunnel and developer-mode
+> permissions are required separately from a chat subscription.
+
+```text
+Clone https://github.com/simplaj/codex-with-chatgpt into ~/codex-with-chatgpt-openai.
+If it already exists, verify its source and preserve local edits; do not blindly pull.
+Set up this version for me end-to-end without Cloudflare. Do the work, not just
+provide instructions. First distinguish the tool checkout from my target project;
+ask only for the target path if it is unclear.
+Check git, Node >=20 and pnpm; install permitted dependencies and build this checkout.
+Install skill/SKILL.md into ~/.codex/skills/codex-with-chatgpt/SKILL.md and update
+“The codex-with-chatgpt checkout lives at:” to the actual installation path.
+Follow “OpenAI one-paste setup” in that Skill: install the standalone runtime,
+create/select and associate a tunnel, save configuration, launch the runtime,
+check readiness, configure the Tunnel app, and verify file reads and Git queries.
+Never install cloudflared or use the old c2c setup/doctor path. Never overwrite
+these edits with upstream. Do not put keys in chat, command arguments, or my project.
+Use a private local credential file. Ask for one action at a time only when login,
+consent, verification, local secret entry, or missing permissions require me.
+Report configured versus actually connected separately. Show how to resume,
+restart and stop. Respect company network policy; never bypass restrictions.
+```
+
+中文用户可直接复制[中文一段话安装](README.zh-CN.md#一段话安装默认不使用-cloudflare)。
+
+The launcher runs in a persistent terminal, not an auto-start OS service. After
+closing that terminal or rebooting, ask the agent to restart the saved configuration.
+See [the setup guide](docs/openai-tunnel.md) for details.
+
+## Legacy Cloudflare install · 旧版安装（仅显式选择时）
 
 **中文** — 不懂 git、Node、终端？完全不需要懂。把下面这段话原样复制给你的
 编码 Agent（Codex），然后去倒杯咖啡：
@@ -86,17 +123,9 @@ I am a non-technical user — do everything yourself:
 ```
 
 
-**Updates · 更新** — The Skill checks GitHub once a day and updates itself when a
-new version is released; no action needed. You can also say "更新 Codex with ChatGPT"
-anytime. / Skill 每天自动检查一次 GitHub，有新版本会自动更新，无需任何操作；
-也可以随时对 Codex 说"更新 Codex with ChatGPT"。
+**Updates · 更新** — Preserve this modified version. Upgrade only from a source verified to contain the Cloudflare-free feature; never automatically stash local edits or replace this Skill with upstream. 此修改版不自动覆盖为原版。
 
----
-
-*The sections below are in English. 以下详细内容为英文，中文完整版见
-[README.zh-CN.md](README.zh-CN.md)。*
-
-## Install → Setup → Use (manual)
+## Legacy HTTP setup reference (Cloudflare only)
 
 1. Install the Codex Skill: copy `skill/` to `~/.codex/skills/codex-with-chatgpt/`.
 2. Tell Codex: **"Set up Codex with ChatGPT."** (中文: "使用 Codex with ChatGPT 完成首次配置。")
@@ -143,6 +172,9 @@ address — same features, just a slower repair.
 Credentials stay in the OS app state directory, not in the project.
 
 ## How it works
+
+Default path: app → secure tunnel runtime → `mcp-stdio` → selected project.
+The diagram below describes the separate legacy HTTP/Cloudflare path.
 
 ```
              ┌───────────────────────────┐
@@ -201,14 +233,14 @@ Full threat model: [docs/security.md](docs/security.md)
 ```bash
 pnpm install
 pnpm build          # -> dist/, exposes the `c2c` bin
-pnpm test           # vitest: 150 tests (path security, OAuth, pairing, MCP e2e)
+pnpm test           # vitest: 195 tests (path security, OAuth, pairing, MCP e2e)
 
 c2c setup           # bridge + tunnel + pairing code, all in one
 c2c sandbox-allow   # whitelist the settings dir in Codex (macOS + Windows)
 c2c status / doctor / pair / unpair / logs / stop
 ```
 
-Requirements: Node.js >= 20, git. `cloudflared` for the public connection
+Requirements: Node.js >= 20, git. `cloudflared` for the Cloudflare public connection
 (auto-detected; the Skill installs it for you). If QUIC is blocked, set
 `C2C_TUNNEL_PROTOCOL=http2` and restart the bridge.
 
@@ -220,7 +252,7 @@ Docs: [architecture](docs/architecture.md) · [protocol](docs/protocol.md) ·
 ```
 src/
   bridge/     loopback HTTP server, port recovery, admin API
-  mcp/        9 read-only tools, stateless Streamable HTTP
+  mcp/        9 read-only tools, Streamable HTTP and stdio transports
   auth/       OAuth 2.1 (PKCE, DCR, refresh rotation, revocation)
   pairing/    one-time pairing codes (CSPRNG, TTL, rate limits)
   workspace/  path containment, sensitive-file policy, search, git

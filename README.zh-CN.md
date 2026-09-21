@@ -8,15 +8,54 @@
 
 ChatGPT 付费订阅的网页版额度大量闲置，Codex 却在消耗紧张的 API 额度做
 规划和 Review。本项目把"思考"交给你已付费的网页版 ChatGPT，Codex 只负责
-执行。不用 API Key、不搞逆向代理——官方网页 + 只读 MCP 桥接。
+执行。不调用模型 API、不搞逆向代理——官方网页 + 只读 MCP 桥接。
+可选的 OpenAI Tunnel 连接需要 runtime API key。
 
 ## 这是什么
 
 把 ChatGPT 网页版变成 Codex 编码会话的"规划与审查大脑"，而执行权完全保留在
-Codex 手里。你的仓库永远不会被上传——ChatGPT 通过一条安全的、OAuth 保护的
+Codex 手里。不会整包上传项目，但被请求的文件内容会通过连接传输——ChatGPT 通过一条安全的、受认证与访问控制保护的
 **只读** MCP 连接，按需读取当前工作区里它真正需要的那几行代码。
 
-## 一段话安装（纯小白专用）
+## 一段话安装（默认不使用 Cloudflare）
+
+**直接复制下面整段给 Codex。** 自动完成安装、生成配置、启动连接和网页验证；
+只有登录、授权、验证码，以及把密钥保存到本机时需要你操作，不需要自己拼启动命令。
+
+> 本分叉包含 `c2c openai setup`，请使用本页下方指定的下载地址，不要安装尚未包含本功能的原版。
+> 需要 Tunnel 使用权限与开发者模式；订阅本身不代表已有这些权限。
+
+```text
+请从 https://github.com/simplaj/codex-with-chatgpt 安装本分叉，
+为我一键配置“不使用 Cloudflare”的连接，目标是我要工作的项目。
+我是非技术用户，请你完成以下步骤，不要只给我操作文档：
+
+1. 先区分工具安装目录和目标项目目录；如果目标不明确，只问我项目路径。
+   将 https://github.com/simplaj/codex-with-chatgpt 克隆到 ~/codex-with-chatgpt-openai。
+   如果目录已存在，先核实来源与本地修改，复用含 c2c openai setup 的版本；
+   不要覆盖修改、切回原版或盲目 git pull。
+2. 检查 git、Node.js >= 20、pnpm，按公司允许的方式补齐依赖；安装依赖并构建。
+3. 将 skill/SKILL.md 安装到 ~/.codex/skills/codex-with-chatgpt/SKILL.md，
+   把 “The codex-with-chatgpt checkout lives at:” 的路径改成当前实际工具目录。
+4. 严格执行 Skill 中的 “OpenAI one-paste setup” 全流程：安装独立 runtime，
+   获取或创建 Tunnel 并关联正确的使用范围，生成本地配置，启动，检查健康状态，
+   在网页创建 Tunnel 连接，并实际验证文件读取和 Git 查询。
+5. 禁止安装、启动或回退到 cloudflared；禁止运行旧 c2c setup/doctor 流程。
+   密钥不得发到聊天、作为命令行参数或写入目标项目；通过本机私密文件配置。
+6. 能自动完成的你自己做。登录、验证码、授权或保存密钥时，一次只告诉我一个动作。
+   缺少权限时明确告诉我缺什么，不要假装成功，也不要尝试绕过公司网络限制。
+7. 完成后展示验证清单，以及以后如何继续、重启和停止。
+   必须明确“本机已配置”和“网页已实际连通”是两个不同状态。
+```
+
+之后只需要说：**“使用这套无 Cloudflare 连接，帮我实现 XXX。”**
+连接断开时说：**“修复无 Cloudflare 连接，不要切换到 Cloudflare。”**
+
+运行方式：当前启动器是持续运行的进程，不会自动注册开机服务。
+关闭它所在的终端或重启电脑后，让 Codex 按已保存配置重新启动即可。
+完整技术步骤与权限说明见[配置指南](docs/openai-tunnel.md)。
+
+## 旧版 Cloudflare 安装（仅显式选择此模式时）
 
 不懂 git、Node、终端？完全不需要懂。把下面这段话原样复制给你的编码
 Agent（Codex），然后去倒杯咖啡：
@@ -42,10 +81,9 @@ Agent（Codex），然后去倒杯咖啡：
    Tunnel、端口这些词，不要向我解释；出了问题先自己修。
 ```
 
-**更新**：Skill 每天自动检查一次 GitHub，有新版本会自动更新并继续任务，
-无需任何操作；也可以随时对 Codex 说"更新 Codex with ChatGPT"。
+**更新**：此修改版不要自动覆盖为原版。升级前先确认目标版本包含无 Cloudflare 功能，并保留本地修改。
 
-## 安装 → 配置 → 使用（手动版）
+## 旧版 HTTP 配置参考（仅 Cloudflare 模式）
 
 1. 安装 Codex Skill：把 `skill/` 复制到 `~/.codex/skills/codex-with-chatgpt/`。
 2. 对 Codex 说：**"使用 Codex with ChatGPT 完成首次配置。"**
@@ -77,6 +115,9 @@ Ready.
 凭证放在系统目录，不进项目。
 
 ## 工作原理
+
+默认新模式：网页应用 → 安全隧道 runtime → `mcp-stdio` → 指定项目。
+下面的图展示单独保留的旧版 HTTP/Cloudflare 模式。
 
 ```
              ┌───────────────────────────┐
@@ -131,14 +172,14 @@ Ready.
 ```bash
 pnpm install
 pnpm build          # 产出 dist/，暴露 c2c 命令
-pnpm test           # vitest：150 个测试（路径安全、OAuth、配对、MCP 端到端）
+pnpm test           # vitest：195 个测试（路径安全、OAuth、配对、MCP 端到端）
 
 c2c setup           # 一条命令：Bridge + 隧道 + 配对码
 c2c sandbox-allow   # 把本地设置目录加入 Codex 沙箱白名单（macOS / Windows）
 c2c status / doctor / pair / unpair / logs / stop
 ```
 
-环境要求：Node.js >= 20、git；公网连接需要 `cloudflared`
+环境要求：Node.js >= 20、git；Cloudflare 公网连接需要 `cloudflared`
 （自动检测，Skill 会替你安装）。如果 QUIC 被拦截，设置
 `C2C_TUNNEL_PROTOCOL=http2` 后重启 Bridge。
 
@@ -150,7 +191,7 @@ c2c status / doctor / pair / unpair / logs / stop
 ```
 src/
   bridge/     本机回环 HTTP 服务、端口自动恢复、管理 API
-  mcp/        9 个只读工具、无状态 Streamable HTTP
+  mcp/        9 个只读工具、Streamable HTTP 和 stdio 传输
   auth/       OAuth 2.1（PKCE、动态注册、refresh 轮换、吊销）
   pairing/    一次性配对码（CSPRNG、TTL、限速）
   workspace/  路径收敛、敏感文件策略、搜索、git

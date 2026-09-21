@@ -1,5 +1,8 @@
 # Security Model
 
+The OAuth/token sections below describe the HTTP bridge. The optional stdio
+transport has the distinct authorization boundary described below.
+
 ## Trust boundaries
 
 1. **Workspace root** is the smallest authorization boundary. One bridge serves
@@ -55,3 +58,22 @@ integration is a V2 item.
 Write files, delete files, run shell commands, commit, install packages —
 these tools do not exist on the server, so no prompt injection, scope bug, or
 UI confusion can enable them.
+
+## Stdio / OpenAI Tunnel authorization
+
+`mcp-stdio` exposes the same read-only handlers, path containment, sensitive-file
+policy, and response limits without HTTP authentication. Its trusted local
+launcher selects one explicit workspace and receives all read-only tool
+capabilities. It does not use C2C pairing codes, bearer tokens, or per-token
+scopes. Do not wrap it in an unauthenticated network listener.
+
+When launched by OpenAI Secure MCP Tunnel, organization/workspace associations
+and tunnel permissions authorize remote callers. Anyone allowed to use that
+tunnel can read the selected workspace within the tool policy. Keep one active
+runtime per tunnel ID and use distinct IDs for different workspaces. The runtime
+API key belongs in local secret storage or its environment, outside the exposed
+workspace, and must never be shared through chat or execution records.
+
+`c2c unpair` only revokes HTTP OAuth tokens. Revoke tunnel access through its
+permissions/app association and stop the external runtime to stop service;
+`c2c stop` manages only the HTTP bridge. See [OpenAI Tunnel setup](openai-tunnel.md).

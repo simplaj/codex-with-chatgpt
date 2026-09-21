@@ -1,8 +1,10 @@
+import { registerOpenaiCommands } from "../tunnel/openai.js";
 import { Command, InvalidArgumentError } from "commander";
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { runStdioServer } from "../mcp/stdio.js";
 import { startBridge } from "../bridge/server.js";
 import { findBridgeObservation, findLiveBridge, type RuntimeState } from "../bridge/runtime.js";
 import { adminFetch, ensureBridge, stopBridge } from "../process/daemon.js";
@@ -242,6 +244,20 @@ program
     process.on("SIGINT", shutdown);
     process.on("SIGTERM", shutdown);
     say(`bridge ready on ${bridge.localBaseUrl()} (workspace ${bridge.workspace.name})`);
+  });
+
+// Local transport for clients such as OpenAI Secure MCP Tunnel runtime.
+program
+  .command("mcp-stdio")
+  .description("Run the read-only MCP server over stdin/stdout (no HTTP or Cloudflare)")
+  .requiredOption("-w, --workspace <path>", "workspace root exposed to the MCP client")
+  .action(async (opts: { workspace: string }) => {
+    try {
+      await runStdioServer(resolveWorkspace(opts.workspace));
+    } catch (error) {
+      process.stderr.write(`MCP startup failed: ${error instanceof Error ? error.message : String(error)}\n`);
+      process.exitCode = 1;
+    }
   });
 
 // ---------------------------------------------------------------- start
@@ -1245,6 +1261,8 @@ function handleCliError(error: unknown, json: boolean): void {
   }
   process.exitCode = 1;
 }
+
+registerOpenaiCommands(program);
 
 program.parseAsync(process.argv).catch((error: Error) => {
   cross(error.message);
