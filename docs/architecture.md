@@ -92,3 +92,9 @@ authentication on this path; all read-only tools remain constrained to the
 selected workspace. The runtime owns process supervision and tunnel health,
 independently of the existing `c2c doctor`/`stop` bridge commands. See the
 [setup and lifecycle guide](openai-tunnel.md).
+
+## Optional full-access stdio tools
+
+Explicit `--access full` registers three additional file/shell tools in the stdio
+server. The default HTTP server remains read-only. These full tools run as the
+local OS user, not inside the project containment policy; consult security.md.

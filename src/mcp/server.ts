@@ -1,3 +1,4 @@
+import { registerFullAccessTools } from "./full-access.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
@@ -180,6 +181,7 @@ const executionOutputOutputSchema = {
 };
 
 export interface McpContext {
+  access?: "read-only" | "full";
   workspace: Workspace;
   logger: Logger;
 }
@@ -471,5 +473,6 @@ export function createMcpServer(ctx: McpContext): McpServer {
     }
   );
 
+  if (ctx.access === "full") registerFullAccessTools(server, workspace.root);
   return server;
 }

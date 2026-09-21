@@ -73,7 +73,7 @@ describe("OpenAI agent setup", () => {
   it("reports offline rather than pretending configuration means connected", () => {
     const result = cli(["doctor", "-w", root, "--json"]);
     expect(result.status).toBe(1);
-    expect(JSON.parse(result.stdout)).toMatchObject({ ok: false, runtimeReady: false, appVerified: false });
+    expect(JSON.parse(result.stdout)).toMatchObject({ ok: false, runtimeReady: false, appVerified: null });
   });
   it("quotes every MCP argument and uses an absolute launcher", () => {
     const command = mcpCommand(root);
@@ -87,6 +87,15 @@ describe("OpenAI agent setup", () => {
     expect(result.stdout).toBe("runtime-started\n");
     expect(result.stdout + result.stderr).not.toContain(secret);
     expect(fs.readdirSync(path.join(state, "openai")).filter(n => n.endsWith(".lock"))).toEqual([]);
+  });
+  it("persists explicit full access and passes it to the child command", () => {
+    const result = setup(["--key-file", keyFile, "--access", "full"]);
+    expect(result.status).toBe(0);
+    const payload = JSON.parse(result.stdout);
+    expect(payload.access).toBe("full");
+    expect(JSON.parse(fs.readFileSync(payload.configFile, "utf8")).access).toBe("full");
+    expect(JSON.parse(setup(["--key-file", keyFile]).stdout).access).toBe("full");
+    expect(mcpCommand(root, "full")).toContain('"--access" "full"');
   });
   it("returns actionable errors for an unconfigured project", () => {
     const other = makeTmpDir("openai-empty");

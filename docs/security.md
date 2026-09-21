@@ -1,7 +1,8 @@
 # Security Model
 
 The OAuth/token sections below describe the HTTP bridge. The optional stdio
-transport has the distinct authorization boundary described below.
+transport has the distinct authorization boundary described below. All workspace
+containment and no-execution claims here apply to read-only mode only.
 
 ## Trust boundaries
 
@@ -53,7 +54,7 @@ tokens are persisted — a stolen state file does not yield usable bearer tokens
 than OS-keychain-based. Raw tokens are never written anywhere. Keychain
 integration is a V2 item.
 
-## What ChatGPT can never do (V1)
+## What read-only connections cannot do
 
 Write files, delete files, run shell commands, commit, install packages —
 these tools do not exist on the server, so no prompt injection, scope bug, or
@@ -77,3 +78,19 @@ workspace, and must never be shared through chat or execution records.
 `c2c unpair` only revokes HTTP OAuth tokens. Revoke tunnel access through its
 permissions/app association and stop the external runtime to stop service;
 `c2c stop` manages only the HTTP bridge. See [OpenAI Tunnel setup](openai-tunnel.md).
+
+## Explicit full access — not a sandbox
+
+`mcp-stdio --access full` exposes OS-user file reading/writing and arbitrary shell
+execution. `openai setup --access full` persists this opt-in; previous connections
+are not silently upgraded. The HTTP bridge still creates read-only servers.
+
+Full tools bypass the project containment and sensitive-file policy by design.
+Anyone authorized to use this tunnel can access files/credentials available to
+its OS user, delete data, install programs and use the network. Removing the
+control-plane key from the shell environment is only hygiene, NOT isolation;
+the same user can still read its credential file. Full outputs are not secret
+redacted. There is no server-side per-command approval. Use client approvals,
+narrow tunnel membership and OS/container isolation, and do not run as root.
+Timeouts/output caps limit ordinary commands but are not an OS security boundary;
+commands deliberately escaping a process group require external supervision.

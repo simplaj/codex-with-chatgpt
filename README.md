@@ -6,6 +6,10 @@
 > [!IMPORTANT]
 > This modified version defaults to the Cloudflare-free setup below. Preserve local changes; do not automatically update from a source that lacks this feature.
 
+> Access modes: read-only descriptions below apply to the default mode. Explicit
+> `--access full` adds OS-user file read/write and shell execution outside the
+> project too. See the full-access setup and security warnings below.
+
 ## The problem · 解决什么问题
 
 **中文** — ChatGPT 付费订阅的网页版额度大量闲置，Codex 却在消耗紧张的
@@ -57,7 +61,7 @@ create/select and associate a tunnel, save configuration, launch the runtime,
 check readiness, configure the Tunnel app, and verify file reads and Git queries.
 Never install cloudflared or use the old c2c setup/doctor path. Never overwrite
 these edits with upstream. Do not put keys in chat, command arguments, or my project.
-Use a private local credential file. Ask for one action at a time only when login,
+Use a private local credential file. Show the complete human checklist first; pause when login,
 consent, verification, local secret entry, or missing permissions require me.
 Report configured versus actually connected separately. Show how to resume,
 restart and stop. Respect company network policy; never bypass restrictions.
@@ -68,6 +72,43 @@ restart and stop. Respect company network policy; never bypass restrictions.
 The launcher runs in a persistent terminal, not an auto-start OS service. After
 closing that terminal or rebooting, ask the agent to restart the saved configuration.
 See [the setup guide](docs/openai-tunnel.md) for details.
+
+## Full file and terminal access (explicit opt-in)
+
+Add this to the installation request: “Enable `--access full`; I need read/write
+and shell execution and understand that this grants the runtime OS user's access
+outside the project, not a sandbox. Stop the old instance, save the mode, restart,
+refresh the app tools, then verify reading, writing and a harmless command.”
+
+This adds `read_file_full`, `write_file`, and `execute_command`. Existing tools
+retain their restrictions; existing connections stay read-only until explicitly
+changed. Full access can delete data, reach the network and read credentials
+accessible to that OS user. It does not elevate to administrator. Use a dedicated
+OS user/container and trusted callers. The server adds no per-call approval gate.
+
+## Human setup checklist (show all steps upfront)
+
+1. Use the current directory when requested, including empty/non-Git directories.
+2. Create/select a tunnel and associate the intended ChatGPT workspace.
+3. Create the supported runtime key in **API keys settings**, not tunnel details.
+   Use Tunnels Read + Use; creation needs Manage separately. IDs are not keys.
+4. On Unix run `python3 <checkout>/scripts/save-runtime-key.py` in your own terminal;
+   paste into the hidden prompt. Use `--replace` only for intentional rotation.
+   On Windows use a local credential editor and owner-only ACL. Never send keys
+   through chat, command arguments or project files.
+5. Let the agent save configuration and start/check the runtime.
+6. Open [app management](https://chatgpt.com/plugins), enable developer mode if
+   permitted, create an app with Connection → Tunnel, the saved ID, and None
+   authentication. Do not enter the runtime key or an HTTP URL here.
+7. Verify `workspace_info`, a fresh challenge file read, and `git_status` in the
+   actual app. Non-Git is a valid result. In full mode also write/read a disposable
+   file and execute a harmless command. Refresh tools after changing modes.
+
+Report installed/configured/runtime-ready/app-verified independently.
+`appVerified: null` means not checked locally, not failure. If browser tools are
+unavailable, provide the full manual checklist immediately and continue local
+work. On key format errors check saved value and runtime compatibility before
+requesting another key; never widen permissions to All/Admin as a workaround.
 
 ## Legacy Cloudflare install · 旧版安装（仅显式选择时）
 
@@ -90,7 +131,7 @@ See [the setup guide](docs/openai-tunnel.md) for details.
   （运行 c2c setup，用内置浏览器打开 ChatGPT 配置连接器并输入配对码）。
    全程只用内置浏览器，禁止打开任何第三方浏览器。
 6. 只有遇到需要我登录（ChatGPT / Cloudflare）、验证码或两步验证时才叫我，
-   而且一次只告诉我一个动作。
+   而且先一次给出完整清单，再按我的偏好引导。
 7. 完成后给我看 ✓ 清单，并确认文件读取测试通过。我不懂 MCP、OAuth、
    Tunnel、端口这些词，不要向我解释；出了问题先自己修。
 ```
@@ -233,7 +274,7 @@ Full threat model: [docs/security.md](docs/security.md)
 ```bash
 pnpm install
 pnpm build          # -> dist/, exposes the `c2c` bin
-pnpm test           # vitest: 195 tests (path security, OAuth, pairing, MCP e2e)
+pnpm test           # vitest: 202 tests (path security, OAuth, pairing, MCP e2e)
 
 c2c setup           # bridge + tunnel + pairing code, all in one
 c2c sandbox-allow   # whitelist the settings dir in Codex (macOS + Windows)

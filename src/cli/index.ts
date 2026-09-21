@@ -1,5 +1,5 @@
 import { registerOpenaiCommands } from "../tunnel/openai.js";
-import { Command, InvalidArgumentError } from "commander";
+import { Command, InvalidArgumentError, Option } from "commander";
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -249,11 +249,12 @@ program
 // Local transport for clients such as OpenAI Secure MCP Tunnel runtime.
 program
   .command("mcp-stdio")
-  .description("Run the read-only MCP server over stdin/stdout (no HTTP or Cloudflare)")
+  .description("Run MCP over stdin/stdout (read-only unless explicitly configured)")
+  .addOption(new Option("--access <mode>", "full grants OS-user file and shell access, NOT a sandbox").choices(["read-only", "full"]).default("read-only"))
   .requiredOption("-w, --workspace <path>", "workspace root exposed to the MCP client")
-  .action(async (opts: { workspace: string }) => {
+  .action(async (opts: { workspace: string; access: "read-only" | "full" }) => {
     try {
-      await runStdioServer(resolveWorkspace(opts.workspace));
+      await runStdioServer(resolveWorkspace(opts.workspace), opts.access);
     } catch (error) {
       process.stderr.write(`MCP startup failed: ${error instanceof Error ? error.message : String(error)}\n`);
       process.exitCode = 1;

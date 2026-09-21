@@ -40,7 +40,7 @@ Alternatively omit `--key-file` and provide `CONTROL_PLANE_API_KEY` in the
 launch environment. `run` reads the key without printing it and sets the runtime
 variables and MCP command automatically. It uses a per-tunnel lock to prevent
 duplicate starts within this installation. Cross-machine duplicates still need
-operational coordination. `doctor` returns readiness, **not** proof of app access.
+operational coordination. `doctor` returns readiness, **not** proof of app access. `appVerified: null` means not checked locally.
 
 The agent keeps `run` in a persistent terminal. Ctrl-C that terminal to stop;
 after a reboot ask the agent to run it again. No automatic OS startup service
@@ -168,3 +168,31 @@ the exposed workspace and retain loopback-only health/admin endpoints.
 Sources: [Secure MCP Tunnel guide](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels),
 [runtime artifacts](https://github.com/openai/tunnel-client#narrow-runtime-artifacts),
 [stdio configuration and limits](https://github.com/openai/tunnel-client/blob/main/docs/configuration.md#stdio-deployment-limits).
+
+## Full-access configuration and upgrade
+
+Use the same setup arguments plus `--access full` to add OS-user file read/write
+and shell execution. Stop the owned runtime first; mode changes are rejected
+while its lock exists. Repeating setup without `--access` preserves the previous
+mode; use `--access read-only` explicitly to downgrade. Restart and refresh the
+app's tools. Legacy configurations without an access field stay read-only.
+
+`read_file_full` supports absolute/outside paths and byte pagination;
+`write_file` creates files exclusively unless `overwrite: true` is passed;
+`execute_command` supports a working directory, bounded stdout/stderr and a
+100 ms–300 s timeout. It is non-interactive, not an enduring terminal session.
+Shell commands can modify/delete files or install software subject to OS rights.
+Neither root selection nor sensitive-file policies constrain these three tools.
+Use a separate OS user/container when isolation is required.
+
+For secret entry, run `python3 <checkout>/scripts/save-runtime-key.py` in a real
+user terminal, not an agent-captured input session. `--replace` handles intentional
+rotation without putting a key into a command line. Create supported keys in the
+API keys settings, not the tunnel details page. Confirm current runtime support
+and minimum Tunnels Read + Use permissions rather than guessing a prefix.
+
+Acceptance: generate a unique disposable file name and random contents, read it
+through the app and compare locally. In full mode create a second disposable
+file through `write_file`, read it with `read_file_full`, and run `echo` with a
+fresh random marker through `execute_command`. Clean up only files created for
+this check. Never overwrite an existing file or treat readiness as remote proof.

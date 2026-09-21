@@ -4,7 +4,7 @@ import net from "node:net";
 import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import { Workspace } from "../workspace/manager.js";
 import { getStateDir, readJsonIfExists, writeSecureJson } from "../config/paths.js";
 
@@ -15,6 +15,7 @@ interface Config {
   runtime: string;
   keyFile?: string;
   port: number;
+  access?: "read-only" | "full";
 }
 const configPath = (id: string): string => path.join(getStateDir(), "openai", `${id}.json`);
 function outside(root: string, file: string): boolean {
@@ -49,9 +50,9 @@ async function freePort(): Promise<number> {
 }
 // The runtime parses MCP_COMMAND as an argv string, not a shell script.
 const quote = (arg: string): string => `"${arg.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
-export function mcpCommand(root: string): string {
+export function mcpCommand(root: string, access: "read-only" | "full" = "read-only"): string {
   const entry = fileURLToPath(new URL("../../bin/c2c.js", import.meta.url));
-  return [process.execPath, entry, "mcp-stdio", "--workspace", root].map(quote).join(" ");
+  return [process.execPath, entry, "mcp-stdio", "--workspace", root, "--access", access].map(quote).join(" ");
 }
 function credential(config: Config): string {
   const key = config.keyFile
@@ -76,6 +77,7 @@ export function registerOpenaiCommands(program: Command): void {
     .requiredOption("--tunnel-id <id>")
     .requiredOption("--runtime <path>", "absolute path to the standalone runtime (no cloudflared)")
     .option("--key-file <path>", "private file containing only the runtime key, outside the project")
+    .addOption(new Option("--access <mode>", "full grants OS-user read/write/shell access; NOT sandboxed").choices(["read-only", "full"]))
     .option("--json")
     .action(wrap(async (opts) => {
       const workspace = new Workspace(opts.workspace);
@@ -88,6 +90,11 @@ export function registerOpenaiCommands(program: Command): void {
       const keyFile = opts.keyFile ? validateKeyFile(workspace, opts.keyFile) : undefined;
       const file = configPath(workspace.id);
       const prior = readJsonIfExists<Config>(file);
+      const access = opts.access ?? prior?.access ?? "read-only";
+      if (prior && access !== (prior.access ?? "read-only")) {
+        const lock = path.join(getStateDir(), "openai", `${createHash("sha256").update(prior.tunnelId).digest("hex")}.lock`);
+        if (fs.existsSync(lock)) throw new Error("Stop the existing runtime before changing access mode.");
+      }
       // One mapping per tunnel within this installation; never silently rebind.
       if (fs.existsSync(path.dirname(file))) {
         for (const name of fs.readdirSync(path.dirname(file)).filter((name) => name.endsWith(".json"))) {
@@ -100,9 +107,9 @@ export function registerOpenaiCommands(program: Command): void {
       if (prior && (prior.tunnelId !== opts.tunnelId || prior.runtime !== runtime || prior.keyFile !== keyFile)) {
         throw new Error("Configuration differs. Stop the old runtime and remove its configuration explicitly before rebinding.");
       }
-      const config: Config = { transport: "openai", workspace: workspace.root, tunnelId: opts.tunnelId, runtime, keyFile, port: prior?.port ?? await freePort() };
+      const config: Config = { access, transport: "openai", workspace: workspace.root, tunnelId: opts.tunnelId, runtime, keyFile, port: prior?.port ?? await freePort() };
       writeSecureJson(file, config);
-      console.log(JSON.stringify({ ok: true, configured: true, connected: false, workspaceId: workspace.id,
+      console.log(JSON.stringify({ ok: true, configured: true, connected: false, access, workspaceId: workspace.id,
         configFile: file, tunnelId: config.tunnelId, healthUrl: `http://127.0.0.1:${config.port}/readyz`,
         next: "Run c2c openai run -w <project> in a persistent terminal, then c2c openai doctor -w <project> --json. Verify tools in the app separately." }));
     }));
@@ -117,7 +124,7 @@ export function registerOpenaiCommands(program: Command): void {
     fs.closeSync(fd);
     try {
       const child = spawn(config.runtime, ["run", "--health.listen-addr", `127.0.0.1:${config.port}`], {
-        env: { ...process.env, CONTROL_PLANE_API_KEY: key, CONTROL_PLANE_TUNNEL_ID: config.tunnelId, MCP_COMMAND: mcpCommand(config.workspace) },
+        env: { ...process.env, CONTROL_PLANE_API_KEY: key, CONTROL_PLANE_TUNNEL_ID: config.tunnelId, MCP_COMMAND: mcpCommand(config.workspace, config.access ?? "read-only") },
         stdio: "inherit", windowsHide: true,
       });
       const stop = (): void => { child.kill("SIGTERM"); };
@@ -141,8 +148,8 @@ export function registerOpenaiCommands(program: Command): void {
     const config = load(opts.workspace);
     let ready = false;
     try { ready = (await fetch(`http://127.0.0.1:${config.port}/readyz`, { signal: AbortSignal.timeout(3000) })).ok; } catch { /* offline */ }
-    console.log(JSON.stringify({ ok: ready, transport: "openai", tunnelId: config.tunnelId, runtimeReady: ready,
-      appVerified: false, next: ready ? "Verify workspace_info, read_file and git_status in the app." : "Start or inspect the existing runtime. Never fall back to Cloudflare." }));
+    console.log(JSON.stringify({ ok: ready, transport: "openai", tunnelId: config.tunnelId, runtimeReady: ready, access: config.access ?? "read-only",
+      appVerified: null, verification: "not_checked_locally", next: ready ? "Verify workspace_info, read_file and git_status in the app." : "Start or inspect the existing runtime. Never fall back to Cloudflare." }));
     if (!ready) process.exitCode = 1;
   }));
 }

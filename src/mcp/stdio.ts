@@ -4,10 +4,10 @@ import { Workspace } from "../workspace/manager.js";
 import { Logger } from "../logger/index.js";
 
 /** Private child-process transport: stdout is reserved for MCP JSON-RPC. */
-export async function runStdioServer(root: string): Promise<void> {
+export async function runStdioServer(root: string, access: "read-only" | "full" = "read-only"): Promise<void> {
   const workspace = new Workspace(root);
   const logger = new Logger({ name: "mcp-stdio", file: null, console: true });
-  const server = createMcpServer({ workspace, logger });
+  const server = createMcpServer({ workspace, logger, access });
   const transport = new StdioServerTransport();
   let closing = false;
   const shutdown = (): void => {

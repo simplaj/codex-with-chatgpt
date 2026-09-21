@@ -37,6 +37,43 @@ The user wants execution, not a list of commands. Perform these steps in order,
 keeping the installation directory distinct from the target project. Ask one
 short question only when a required target/permission is genuinely missing.
 
+Installation UX rules learned from real setup:
+- “Current folder” means the task's current directory, even if empty or not a Git
+  repository. Do not repeatedly ask for a path already provided.
+- Give the complete human checklist upfront (tunnel association, API key,
+  private save, app creation, acceptance). If the user asks for all steps, show
+  them together instead of forcing a one-question-at-a-time conversation.
+- Runtime keys are created in the API keys settings, NOT tunnel details. A user
+  ID or tunnel ID is not a secret key. Use the installed runtime's current
+  documentation to confirm supported key types and Tunnels Read + Use; do not
+  demand a key prefix or broader permissions based on guesswork.
+- On Unix, offer `python3 <checkout>/scripts/save-runtime-key.py` in the user's
+  own terminal. `--replace` explicitly rotates a saved key. Never collect its
+  hidden input through model-visible tooling. On Windows use a private ACL and
+  a local credential editor. Inspect metadata only, never print the file.
+- For invalid key format, first check that only the secret value was saved
+  (not a label, user ID, or quotes) and whether this runtime supports its type;
+  do not repeatedly ask for new keys or escalate to All/Admin permissions.
+- `doctor.appVerified: null` means NOT CHECKED, not failed. Report installation,
+  saved configuration, runtime readiness and remote acceptance separately.
+- If browser tooling is unavailable, say so immediately, provide the complete
+  manual checklist and exact app entry URL, then continue all local work.
+
+### Explicit full-access mode
+
+Default/legacy connections remain read-only. When the user requests full
+read/write/terminal access, explain that this grants the runtime OS user's
+permissions outside the project too (not root escalation and not a sandbox).
+Then use `--access full` in setup, stop the existing owned runtime first, and
+restart it. Reinstall this Skill from the same updated checkout. Do not silently
+upgrade other connections. In this mode the legacy “execution only belongs to
+Codex”/“read-only” statements below do not apply: the connected app can invoke
+`read_file_full`, `write_file`, and `execute_command` directly. No extra server
+confirmation is provided; normal client approval/organization policy still applies.
+Refresh the app's tools after restart. Verify all three added tools against a
+new disposable file and a harmless command, never existing user files.
+
+
 1. **Local preparation.** Use the checkout under Locations, or the current
    modified checkout if installing for the first time. Verify it contains
    `src/tunnel/openai.ts`; never clone the unmodified upstream over it. Verify
@@ -70,9 +107,10 @@ short question only when a required target/permission is genuinely missing.
    ChatGPT workspace, and confirm Tunnels Read + Use (Manage for creation).
    Never guess the target organization or grant broad unrelated access. Pause
    for login, consent, CAPTCHA, or missing admin permissions. If browser control
-   is unavailable, guide one concrete UI action at a time; do not abandon the
-   user with the whole manual. A subscription is not proof of tunnel access.
-5. **Secret handoff.** Have the user securely save the runtime key directly to
+   is unavailable, provide the full human checklist first, then guide steps at
+   the user’s preferred pace. A subscription is not proof of tunnel access.
+5. **Secret handoff.** Open API keys settings (not tunnel details) to create a
+   supported runtime key with Tunnels Read + Use. Have the user securely save the runtime key directly to
    a local file outside the target project, readable only by their OS user
    (0600 on Unix; restricted ACL on Windows). Explain the file location, not
    the key. Do not read the key into tool output, browser extraction, chat,
@@ -103,7 +141,7 @@ short question only when a required target/permission is genuinely missing.
    permissions still authorize access. Do NOT use an HTTP URL, OAuth pairing,
    or the full-client init/doctor commands. Reuse the selected auto/manual
    browser preference, if one exists; manual mode means one guided step at a
-   time. Login/consent always remains the user's step.
+   time unless they prefer the complete checklist. Login/consent remains the user's step.
 9. **End-to-end acceptance.** Enable the app in the intended conversation.
    Invoke `workspace_info`, `read_file` for a harmless file, and `git_status`.
    Compare the returned workspace ID with setup's ID and check expected file
